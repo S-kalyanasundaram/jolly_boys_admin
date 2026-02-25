@@ -31,5 +31,14 @@
   },
   "overrides": {
     "vite": "^8.0.0-beta.13"
-  }
+  },
+  "scripts": {
+  "start": "react-scripts start",
+  "build": "react-scripts build"
+},
+  "scripts": {
+  "dev": "vite",
+  "build": "vite build",
+  "preview": "vite preview"
+}
 }
