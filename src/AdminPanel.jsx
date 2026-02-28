@@ -20,9 +20,10 @@ function AdminPanel() {
   const [newLoanAmount, setNewLoanAmount] = useState("");
   const [wantLoan, setWantLoan] = useState(false);
 
+  const [fineAmount, setFineAmount] = useState("");
+
   const selectedUser = users[selectedUserIndex];
 
-  // Fetch Users
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -36,10 +37,10 @@ function AdminPanel() {
     if (data) setUsers(data);
   }
 
-  // Fetch Loan when user changes
   useEffect(() => {
     if (selectedUser) {
       fetchLoanDetails(selectedUser.user_id);
+      setFineAmount(selectedUser.fine_2026 || "");
     }
   }, [selectedUserIndex]);
 
@@ -62,7 +63,6 @@ function AdminPanel() {
     }
   }
 
-  // Monthly Amount Submit
   async function handleAmountSubmit() {
     if (!amount || !selectedUser) return;
 
@@ -75,7 +75,17 @@ function AdminPanel() {
     moveToNextUser();
   }
 
-  // Interest Submit
+  async function handleFineSubmit() {
+    if (!selectedUser) return;
+
+    await supabase
+      .from("amount_2026")
+      .update({ fine_2026: fineAmount ? parseInt(fineAmount) : null })
+      .eq("user_id", selectedUser.user_id);
+
+    fetchUsers();
+  }
+
   async function handleInterestSubmit() {
     if (!interestPay || !loanData || !selectedUser) return;
 
@@ -91,7 +101,6 @@ function AdminPanel() {
     moveToNextUser();
   }
 
-  // Change Loan Status
   async function handleStatusChange(value) {
     setLoanStatus(value);
 
@@ -104,7 +113,6 @@ function AdminPanel() {
       .eq("amount_id", loanData.amount_id);
   }
 
-  // Create Loan
   async function handleCreateLoan() {
     if (!newLoanAmount || !selectedUser) return;
 
@@ -113,7 +121,7 @@ function AdminPanel() {
       .insert({
         user_id: selectedUser.user_id,
         loan_amount: parseInt(newLoanAmount),
-        status_id: 1   // Ongoing
+        status_id: 1
       });
 
     setWantLoan(false);
@@ -129,137 +137,217 @@ function AdminPanel() {
   }
 
   return (
-    <div className="space-y-8">
+    <div style={styles.page}>
 
-      <h1 className="text-3xl font-bold text-center">
-        Admin Monthly Collection
+      <h1 style={styles.title}>
+       Jolly Boys Admin Monthly Collection
       </h1>
 
-      {/* USER SELECT */}
-      <div>
-        <label className="block mb-2">Select User</label>
-        <select
-          value={selectedUserIndex}
-          onChange={(e) => setSelectedUserIndex(Number(e.target.value))}
-          className="w-full p-2 bg-slate-700 rounded"
-        >
-          {users.map((user, index) => (
-            <option key={user.user_id} value={index}>
-              {user.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <div style={styles.container}>
 
-      {/* MONTH SELECT */}
-      <div>
-        <label className="block mb-2">Select Month</label>
-        <select
-          value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
-          className="w-full p-2 bg-slate-700 rounded"
-        >
-          {months.map((m) => (
-            <option key={m} value={m}>
-              {m.toUpperCase()}
-            </option>
-          ))}
-        </select>
-      </div>
+        {/* Select User */}
+        <div style={styles.card}>
+          <label>Select User</label>
+          <select
+            value={selectedUserIndex}
+            onChange={(e) => setSelectedUserIndex(Number(e.target.value))}
+            style={styles.input}
+          >
+            {users.map((user, index) => (
+              <option key={user.user_id} value={index}>
+                {user.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      {/* MONTHLY AMOUNT */}
-      <div>
-        <label className="block mb-2">Enter Monthly Amount</label>
-        <input
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          className="w-full p-2 bg-slate-700 rounded"
-        />
-        <button
-          onClick={handleAmountSubmit}
-          className="mt-3 w-full bg-green-600 p-2 rounded"
-        >
-          Submit Monthly Amount
-        </button>
-      </div>
+        {/* Select Month */}
+        <div style={styles.card}>
+          <label>Select Month</label>
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            style={styles.input}
+          >
+            {months.map((m) => (
+              <option key={m} value={m}>
+                {m.toUpperCase()}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      {/* LOAN SECTION */}
-      <div className="bg-slate-800 p-6 rounded-xl space-y-4">
-        <h2 className="text-xl font-bold text-yellow-400">
-          Loan Section
-        </h2>
+        {/* Monthly Amount */}
+        <div style={styles.card}>
+          <label>Enter Monthly Amount</label>
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            style={styles.input}
+          />
+          <button style={styles.greenBtn} onClick={handleAmountSubmit}>
+            Submit Monthly Amount
+          </button>
+        </div>
 
-        {loanData && loanStatus === 1 ? (
-          <>
-            <p>Loan Amount: ₹ {loanData.loan_amount}</p>
-            <p>Monthly Interest (1%): ₹ {interestAmount}</p>
-            <p>Total Paid: ₹ {loanData.loan_total}</p>
+        {/* Fine Section */}
+        <div style={styles.card}>
+          <h2 style={{color:"#60a5fa"}}>Fine Section</h2>
 
-            {/* STATUS */}
-            <div>
-              <label className="block mb-2">Loan Status</label>
+          <p>
+            Current Fine:
+            <span style={{color:"#f87171", marginLeft:10}}>
+              ₹ {selectedUser?.fine_2026 || 0}
+            </span>
+          </p>
+
+          <input
+            type="number"
+            placeholder="Enter Fine Amount"
+            value={fineAmount}
+            onChange={(e) => setFineAmount(e.target.value)}
+            style={styles.input}
+          />
+
+          <button style={styles.blueBtn} onClick={handleFineSubmit}>
+            Update Fine
+          </button>
+        </div>
+
+        {/* Loan Section */}
+        <div style={styles.card}>
+          <h2 style={{color:"#facc15"}}>Loan Section</h2>
+
+          {loanData && loanStatus === 1 ? (
+            <>
+              <p>Loan Amount: ₹ {loanData.loan_amount}</p>
+              <p>Monthly Interest (1%): ₹ {interestAmount}</p>
+              <p>Total Paid: ₹ {loanData.loan_total}</p>
+
               <select
                 value={loanStatus}
                 onChange={(e) => handleStatusChange(Number(e.target.value))}
-                className="w-full p-2 bg-slate-700 rounded"
+                style={styles.input}
               >
                 <option value={1}>Ongoing</option>
                 <option value={2}>Closed</option>
               </select>
-            </div>
 
-            {/* Interest Payment */}
-            <input
-              type="number"
-              placeholder="Enter Monthly Interest Payment"
-              value={interestPay}
-              onChange={(e) => setInterestPay(e.target.value)}
-              className="w-full p-2 bg-slate-700 rounded"
-            />
-
-            <button
-              onClick={handleInterestSubmit}
-              className="w-full bg-yellow-600 p-2 rounded"
-            >
-              Submit Interest
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center space-x-2">
               <input
-                type="checkbox"
-                checked={wantLoan}
-                onChange={(e) => setWantLoan(e.target.checked)}
+                type="number"
+                placeholder="Enter Monthly Interest Payment"
+                value={interestPay}
+                onChange={(e) => setInterestPay(e.target.value)}
+                style={styles.input}
               />
-              <label>Want Loan?</label>
-            </div>
 
-            {wantLoan && (
-              <>
+              <button style={styles.yellowBtn} onClick={handleInterestSubmit}>
+                Submit Interest
+              </button>
+            </>
+          ) : (
+            <>
+              <div>
                 <input
-                  type="number"
-                  placeholder="Enter Loan Amount"
-                  value={newLoanAmount}
-                  onChange={(e) => setNewLoanAmount(e.target.value)}
-                  className="w-full p-2 bg-slate-700 rounded"
+                  type="checkbox"
+                  checked={wantLoan}
+                  onChange={(e) => setWantLoan(e.target.checked)}
                 />
+                <label style={{marginLeft:8}}>Want Loan?</label>
+              </div>
 
-                <button
-                  onClick={handleCreateLoan}
-                  className="w-full bg-blue-600 p-2 rounded"
-                >
-                  Create Loan
-                </button>
-              </>
-            )}
-          </>
-        )}
+              {wantLoan && (
+                <>
+                  <input
+                    type="number"
+                    placeholder="Enter Loan Amount"
+                    value={newLoanAmount}
+                    onChange={(e) => setNewLoanAmount(e.target.value)}
+                    style={styles.input}
+                  />
+
+                  <button style={styles.blueBtn} onClick={handleCreateLoan}>
+                    Create Loan
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+
       </div>
-
     </div>
   );
 }
+
+const styles = {
+  page: {
+    minHeight: "100vh",
+    padding: "30px",
+    background: "linear-gradient(135deg,#0f172a,#1e293b,#000)",
+    color: "white",
+    fontFamily: "Arial, sans-serif"
+  },
+  title: {
+    textAlign: "center",
+    fontSize: "32px",
+    fontWeight: "bold",
+    marginBottom: "30px",
+    background: "linear-gradient(90deg,#60a5fa,#a78bfa)",
+    color:"white"
+  },
+  container: {
+    maxWidth: "800px",
+    margin: "auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: "25px"
+  },
+  card: {
+    backdropFilter: "blur(15px)",
+    background: "rgba(255,255,255,0.08)",
+    padding: "20px",
+    borderRadius: "20px",
+    border: "1px solid rgba(255,255,255,0.2)",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px"
+  },
+  input: {
+  padding: "12px",
+  borderRadius: "10px",
+  border: "1px solid rgba(255,255,255,0.3)",
+  backgroundColor: "#1e293b",   // FIXED
+  color: "#ffffff",
+  outline: "none",
+  fontSize: "14px"
+},
+  greenBtn: {
+    padding: "10px",
+    borderRadius: "10px",
+    border: "none",
+    background: "rgba(34,197,94,0.7)",
+    color: "white",
+    cursor: "pointer"
+  },
+  blueBtn: {
+    padding: "10px",
+    borderRadius: "10px",
+    border: "none",
+    background: "rgba(59,130,246,0.7)",
+    color: "white",
+    cursor: "pointer"
+  },
+  yellowBtn: {
+    padding: "10px",
+    borderRadius: "10px",
+    border: "none",
+    background: "rgba(234,179,8,0.7)",
+    color: "black",
+    cursor: "pointer"
+  }
+};
 
 export default AdminPanel;
