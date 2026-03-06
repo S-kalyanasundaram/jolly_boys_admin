@@ -12,7 +12,7 @@ function AdminPanel() {
   const [selectedUserIndex, setSelectedUserIndex] = useState(0);
   const [selectedMonth, setSelectedMonth] = useState("jan");
   const [amount, setAmount] = useState("");
-  const [loanData, setLoanData] = useState(null);
+  const [loanData, setLoanData] = useState([]);
   const [interestAmount, setInterestAmount] = useState(0);
   const [interestPay, setInterestPay] = useState("");
 
@@ -44,24 +44,28 @@ function AdminPanel() {
     }
   }, [selectedUserIndex]);
 
+  useEffect(() => {
+  if (selectedUser) {
+    const value = selectedUser[selectedMonth];
+    setAmount(value || "");
+  }
+}, [selectedMonth, selectedUserIndex]);
+
   async function fetchLoanDetails(userId) {
-    setLoanData(null);
+
     setInterestPay("");
     setNewLoanAmount("");
     setWantLoan(false);
 
-    const { data } = await supabase
-      .from("loan_details")
-      .select("*")
-      .eq("user_id", userId)
-      .order("amount_id", { ascending: false })  // latest loan
-      .limit(1)
-      .single();
+  const { data } = await supabase
+  .from("loan_details")
+  .select("*")
+  .eq("user_id", userId)
+  .eq("status_id", 1)   // ONLY ONGOING LOANS
+  .order("loan_id", { ascending: false });
 
     if (data) {
       setLoanData(data);
-      setInterestAmount(data.intrest_amount);
-      setLoanStatus(data.status_id);
     }
   }
 
@@ -88,31 +92,34 @@ function AdminPanel() {
     fetchUsers();
   }
 
-  async function handleInterestSubmit() {
-    if (!interestPay || !loanData || !selectedUser) return;
+  async function handleInterestSubmit(loan) {
+
+    if (!interestPay) return;
 
     const column = `in_${selectedMonth}`;
+
+    if (loan[column]) {
+      alert("Interest already added for this month");
+      return;
+    }
 
     await supabase
       .from("loan_details")
       .update({ [column]: parseInt(interestPay) })
-      .eq("user_id", selectedUser.user_id)
-      .eq("amount_id", loanData.amount_id);
+      .eq("loan_id", loan.loan_id);
 
     setInterestPay("");
-    moveToNextUser();
+    fetchLoanDetails(selectedUser.user_id);
   }
 
-  async function handleStatusChange(value) {
-    setLoanStatus(value);
-
-    if (!loanData || !selectedUser) return;
+  async function handleStatusChange(loan, value) {
 
     await supabase
       .from("loan_details")
       .update({ status_id: value })
-      .eq("user_id", selectedUser.user_id)
-      .eq("amount_id", loanData.amount_id);
+      .eq("loan_id", loan.loan_id);
+
+    fetchLoanDetails(selectedUser.user_id);
   }
 
   async function handleCreateLoan() {
@@ -188,7 +195,7 @@ function AdminPanel() {
             onChange={(e) => setAmount(e.target.value)}
             style={styles.input}
           />
-          <button style={styles.greenBtn} onClick={handleAmountSubmit}>
+          <button style={styles.greenBtn} onClick={handleAmountSubmit} disabled={selectedUser?.[selectedMonth]}>
             Submit Monthly Amount
           </button>
         </div>
@@ -219,64 +226,90 @@ function AdminPanel() {
 
         {/* Loan Section */}
         <div style={styles.card}>
-          <h2 style={{color:"#facc15"}}>Loan Section</h2>
+  <h2 style={{color:"#facc15"}}>Loan Section</h2>
 
-          {loanData && loanStatus === 1 ? (
-            <>
-              <p>Loan Amount: ₹ {loanData.loan_amount}</p>
-              <p>Monthly Interest (1%): ₹ {interestAmount}</p>
-              <p>Total Paid: ₹ {loanData.loan_total}</p>
+  {/* EXISTING ONGOING LOANS */}
+  {loanData.length > 0 && (
+    loanData.map((loan) => {
 
-              <select
-                value={loanStatus}
-                onChange={(e) => handleStatusChange(Number(e.target.value))}
-                style={styles.input}
-              >
-                <option value={1}>Ongoing</option>
-                <option value={2}>Closed</option>
-              </select>
+      const column = `in_${selectedMonth}`;
 
-              <input
-                type="number"
-                placeholder="Enter Monthly Interest Payment"
-                value={interestPay}
-                onChange={(e) => setInterestPay(e.target.value)}
-                style={styles.input}
-              />
+      return (
+        <div key={loan.loan_id} style={styles.card}>
 
-              <button style={styles.yellowBtn} onClick={handleInterestSubmit}>
-                Submit Interest
-              </button>
-            </>
-          ) : (
-            <>
-              <div>
-                <input
-                  type="checkbox"
-                  checked={wantLoan}
-                  onChange={(e) => setWantLoan(e.target.checked)}
-                />
-                <label style={{marginLeft:8}}>Want Loan?</label>
-              </div>
+          <p>Loan Amount: ₹ {loan.loan_amount}</p>
+          <p>Monthly Interest (1%): ₹ {loan.intrest_amount}</p>
+          <p>Total Paid: ₹ {loan.loan_total}</p>
 
-              {wantLoan && (
-                <>
-                  <input
-                    type="number"
-                    placeholder="Enter Loan Amount"
-                    value={newLoanAmount}
-                    onChange={(e) => setNewLoanAmount(e.target.value)}
-                    style={styles.input}
-                  />
+          <p>
+            Current Month Paid:
+            <span style={{marginLeft:8,color:"#34d399"}}>
+              ₹ {loan[column] || 0}
+            </span>
+          </p>
 
-                  <button style={styles.blueBtn} onClick={handleCreateLoan}>
-                    Create Loan
-                  </button>
-                </>
-              )}
-            </>
+          {loan[column] && (
+            <p style={{color:"#f87171"}}>
+              Interest already added for {selectedMonth.toUpperCase()}
+            </p>
           )}
+
+          <select
+            value={loan.status_id}
+            onChange={(e)=>handleStatusChange(loan,Number(e.target.value))}
+            style={styles.input}
+          >
+            <option value={1}>Ongoing</option>
+            <option value={2}>Closed</option>
+          </select>
+
+          <input
+            type="number"
+            placeholder="Enter Monthly Interest Payment"
+            value={interestPay}
+            onChange={(e) => setInterestPay(e.target.value)}
+            style={styles.input}
+          />
+
+          <button
+            style={styles.yellowBtn}
+            onClick={()=>handleInterestSubmit(loan)}
+          >
+            Submit Interest
+          </button>
+
         </div>
+      );
+    })
+  )}
+
+  {/* CREATE NEW LOAN */}
+  <div>
+    <input
+      type="checkbox"
+      checked={wantLoan}
+      onChange={(e) => setWantLoan(e.target.checked)}
+    />
+    <label style={{marginLeft:8}}>Create New Loan</label>
+  </div>
+
+  {wantLoan && (
+    <>
+      <input
+        type="number"
+        placeholder="Enter Loan Amount"
+        value={newLoanAmount}
+        onChange={(e) => setNewLoanAmount(e.target.value)}
+        style={styles.input}
+      />
+
+      <button style={styles.blueBtn} onClick={handleCreateLoan}>
+        Create Loan
+      </button>
+    </>
+  )}
+
+</div>
 
       </div>
     </div>
@@ -318,14 +351,14 @@ const styles = {
     gap: "12px"
   },
   input: {
-  padding: "12px",
-  borderRadius: "10px",
-  border: "1px solid rgba(255,255,255,0.3)",
-  backgroundColor: "#1e293b",   // FIXED
-  color: "#ffffff",
-  outline: "none",
-  fontSize: "14px"
-},
+    padding: "12px",
+    borderRadius: "10px",
+    border: "1px solid rgba(255,255,255,0.3)",
+    backgroundColor: "#1e293b",
+    color: "#ffffff",
+    outline: "none",
+    fontSize: "14px"
+  },
   greenBtn: {
     padding: "10px",
     borderRadius: "10px",
