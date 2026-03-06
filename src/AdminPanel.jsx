@@ -54,7 +54,9 @@ function AdminPanel() {
       .from("loan_details")
       .select("*")
       .eq("user_id", userId)
-      .maybeSingle();
+      .order("amount_id", { ascending: false })  // latest loan
+      .limit(1)
+      .single();
 
     if (data) {
       setLoanData(data);
